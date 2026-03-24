@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "installCommand": null,
+  "outputDirectory": null,
+  "rewrites": [
+    { "source": "/", "destination": "/phantombuster-content-dashboard.html" }
+  ]
+}
