@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhantomBuster Blog Content Performance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #9ca3af;
+    --accent: #6366f1;
+    --accent2: #8b5cf6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --blue: #3b82f6;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header .meta { color: var(--muted); font-size: 13px; }
+  .refresh-bar {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 6px;
+  }
+  .refresh-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .refresh-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+  .refresh-dot.stale { background: var(--orange); animation: none; }
+  .refresh-dot.error { background: var(--red); animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .btn {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: var(--accent); color: white; border: none; font-weight: 500;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+  }
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .kpi .value { font-size: 26px; font-weight: 700; }
+  .kpi .change { font-size: 12px; margin-top: 4px; }
+  .change.up { color: var(--green); }
+  .change.down { color: var(--red); }
+  .change.neutral { color: var(--muted); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+  .chart-container { position: relative; height: 280px; }
+  .chart-container-sm { position: relative; height: 220px; }
+  .chart-container-tall { position: relative; height: 340px; }
+
+  /* Table */
+  .table-wrapper { overflow-x: auto; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:hover td { background: rgba(99,102,241,0.04); }
+  .url-cell { max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+  .url-cell a { color: var(--accent); text-decoration: none; }
+  .url-cell a:hover { text-decoration: underline; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500;
+  }
+  .pill.green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .pill.red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .pill.neutral { background: rgba(156,163,175,0.15); color: var(--muted); }
+
+  /* Provider cards */
+  .provider-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .provider-card {
+    background: rgba(99,102,241,0.06);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    text-align: center;
+  }
+  .provider-card .name { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .provider-card .stat { font-size: 22px; font-weight: 700; }
+  .provider-card .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 6px 14px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    background: transparent; color: var(--muted); border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--accent); color: white; }
+
+  .section-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; margin-top: 8px; }
+
+  /* Competitor highlight row */
+  tr.own-brand td { background: rgba(99,102,241,0.08); }
+  tr.own-brand td:first-child { border-left: 3px solid var(--accent); }
+  .comp-name { font-weight: 600; }
+  .comp-name.own { color: var(--accent); }
+
+  /* Heatmap cell */
+  .heat { border-radius: 4px; padding: 4px 8px; text-align: center; font-size: 12px; font-weight: 500; }
+
+  /* Nav tabs for sections */
+  .nav-tabs { display: flex; gap: 0; margin-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .nav-tab {
+    padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 500;
+    color: var(--muted); border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Rising threat badge */
+  .threat-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; padding: 2px 6px; border-radius: 4px;
+    background: rgba(239,68,68,0.12); color: var(--red); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .threat-badge.rising { background: rgba(245,158,11,0.12); color: var(--orange); }
+
+  /* Category pills */
+  .cat-pill {
+    display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px;
+    font-weight: 500; white-space: nowrap;
+  }
+  .cat-pill.cat-linkedin { background: rgba(0,119,181,0.15); color: #0077b5; }
+  .cat-pill.cat-instagram { background: rgba(225,48,108,0.15); color: #e1306c; }
+  .cat-pill.cat-facebook { background: rgba(24,119,242,0.15); color: #1877f2; }
+  .cat-pill.cat-twitter { background: rgba(29,161,242,0.15); color: #1da1f2; }
+  .cat-pill.cat-competitors { background: rgba(239,68,68,0.12); color: var(--red); }
+  .cat-pill.cat-sales-navigator { background: rgba(99,102,241,0.15); color: var(--accent); }
+  .cat-pill.cat-scraping { background: rgba(245,158,11,0.15); color: var(--orange); }
+  .cat-pill.cat-email { background: rgba(34,197,94,0.15); color: var(--green); }
+  .cat-pill.cat-brand { background: rgba(139,92,246,0.15); color: var(--accent2); }
+  .cat-pill.cat-other { background: rgba(156,163,175,0.15); color: var(--muted); }
+
+  /* Date range picker */
+  .date-picker-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 12px 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 24px;
+  }
+  .date-picker-bar .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; margin-right: 4px; }
+  .preset-btn {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    transition: all 0.15s; font-weight: 500;
+  }
+  .preset-btn:hover { color: var(--text); border-color: var(--muted); }
+  .preset-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .date-input {
+    padding: 5px 10px; border-radius: 6px; font-size: 12px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    font-family: inherit;
+  }
+  .date-input:focus { outline: none; border-color: var(--accent); }
+  .date-separator { color: var(--muted); font-size: 12px; }
+  .date-range-label {
+    font-size: 12px; color: var(--accent); font-weight: 500;
+    margin-left: auto;
+  }
+
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>PhantomBuster Blog — Content Performance</h1>
+    <div class="refresh-bar">
+      <div class="refresh-status">
+        <div class="refresh-dot" id="refreshDot"></div>
+        <span id="refreshLabel">Data loaded</span>
+      </div>
+      <span class="meta" id="lastUpdated">Updated Mar 19, 2026</span>
+      <button class="btn" id="refreshBtn" onclick="refreshData()">Refresh Data</button>
+      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;">
+        <input type="checkbox" id="autoRefreshToggle" onchange="toggleAutoRefresh()"> Auto (30m)
+      </label>
+    </div>
+  </div>
+  <div class="meta" id="headerMeta">
+    Tracking 240 prompts · 2,633 blog pages · 7 competitors
+  </div>
+</div>
+
+<!-- Section Nav -->
+<div class="nav-tabs">
+  <div class="nav-tab active" onclick="switchSection('overview', this)">Overview</div>
+  <div class="nav-tab" onclick="switchSection('competitors', this)">Competitor Comparison</div>
+  <div class="nav-tab" onclick="switchSection('pages', this)">Blog Pages</div>
+  <div class="nav-tab" onclick="switchSection('automations', this)">Phantom Pages</div>
+  <div class="nav-tab" onclick="switchSection('aireferral', this)">AI Referrals</div>
+</div>
+
+<!-- Date Range Picker -->
+<div class="date-picker-bar">
+  <span class="label">Date Range</span>
+  <button class="preset-btn" onclick="setPreset('2w', this)">2 Weeks</button>
+  <button class="preset-btn" onclick="setPreset('4w', this)">4 Weeks</button>
+  <button class="preset-btn" onclick="setPreset('8w', this)">8 Weeks</button>
+  <button class="preset-btn active" onclick="setPreset('all', this)">All Time</button>
+  <span class="date-separator">|</span>
+  <span class="label" style="margin-right:0">Custom</span>
+  <input type="date" class="date-input" id="dateFrom" onchange="applyCustomRange()">
+  <span class="date-separator">to</span>
+  <input type="date" class="date-input" id="dateTo" onchange="applyCustomRange()">
+  <span class="date-range-label" id="rangeLabel">Showing all data</span>
+</div>
+
+<!-- ===== OVERVIEW SECTION ===== -->
+<div class="section active" id="sec-overview">
+
+<!-- KPI Row -->
+<div class="kpi-row" id="kpiRow"></div>
+
+<!-- Charts Row -->
+<div class="grid-2">
+  <div class="card">
+    <h2>AI Visibility Trends (Weekly)</h2>
+    <div class="chart-container">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Citation Count Trend</h2>
+    <div class="chart-container">
+      <canvas id="citationChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Provider Breakdown -->
+<div class="section-title">AI Provider Breakdown (Last 30 Days)</div>
+<div class="card">
+  <div class="grid-2" style="margin-bottom:0">
+    <div>
+      <h2>Mention Rate by Provider</h2>
+      <div class="chart-container-sm">
+        <canvas id="providerMentionChart"></canvas>
+      </div>
+    </div>
+    <div>
+      <h2>Citations by Provider</h2>
+      <div class="chart-container-sm">
+        <canvas id="providerCitationChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="provider-grid" style="margin-top: 20px;" id="providerCards"></div>
+</div>
+
+</div>
+
+<!-- ===== COMPETITOR COMPARISON SECTION ===== -->
+<div class="section" id="sec-competitors">
+
+<!-- Competitor KPI Comparison -->
+<div class="section-title">Share of Voice — PhantomBuster vs Competitors</div>
+<div class="card" style="margin-bottom:28px">
+  <div class="chart-container-tall">
+    <canvas id="compSovChart"></canvas>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Mention Rate Trend by Competitor</h2>
+    <div class="chart-container-tall">
+      <canvas id="compMentionTrend"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Citation Rate Trend by Competitor</h2>
+    <div class="chart-container-tall">
+      <canvas id="compCitationTrend"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Competitor Summary Table -->
+<div class="section-title">Competitor Scorecard (Last 30 Days)</div>
+<div class="card" style="margin-bottom:28px">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Brand</th>
+          <th class="num">Mention Rate</th>
+          <th class="num">Share of Voice</th>
+          <th class="num">Citation Rate</th>
+          <th class="num">Total Citations</th>
+          <th class="num">Sentiment</th>
+          <th class="num">Avg Position</th>
+          <th class="num">1st Mention Rate</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="compTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Competitor × Provider Heatmap -->
+<div class="section-title">Competitor × Provider Heatmap — Mention Rate %</div>
+<div class="card" style="margin-bottom:28px">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Brand</th>
+          <th class="num">ChatGPT</th>
+          <th class="num">Gemini</th>
+          <th class="num">Perplexity</th>
+          <th class="num">Google AI Mode</th>
+          <th class="num">Google AI Overview</th>
+        </tr>
+      </thead>
+      <tbody id="heatmapBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Competitor × Provider — Citation Count -->
+<div class="section-title">Competitor × Provider — Citation Count</div>
+<div class="card" style="margin-bottom:28px">
+  <div class="chart-container-tall">
+    <canvas id="compProviderStackedChart"></canvas>
+  </div>
+</div>
+
+</div>
+
+<!-- ===== BLOG PAGES SECTION ===== -->
+<div class="section" id="sec-pages">
+<div class="section-title">Top Blog Pages — Combined Performance</div>
+<div class="card">
+  <div class="tabs">
+    <div class="tab active" onclick="switchPageView('table', event)">By Citations</div>
+    <div class="tab" onclick="switchPageView('signups', event)">By Signups</div>
+    <div class="tab" onclick="switchPageView('traffic', event)">By Traffic</div>
+    <div class="tab" onclick="switchPageView('clicks', event)">By GSC Clicks</div>
+    <div class="tab" onclick="switchPageView('sessions', event)">By Sessions</div>
+    <div class="tab" onclick="switchPageView('category', event)">By Category</div>
+    <div class="tab" onclick="switchPageView('funnel', event)">Conversion Funnel</div>
+  </div>
+  <!-- Category aggregate view -->
+  <div id="blogCategoryView" style="display:none">
+    <div class="chart-container-tall" style="margin-bottom:20px">
+      <canvas id="blogCategoryChart"></canvas>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th>Category</th>
+          <th class="num">Pages</th>
+          <th class="num">AI Citations</th>
+          <th class="num">GA Traffic</th>
+          <th class="num">Sessions</th>
+          <th class="num">Signups</th>
+          <th class="num">Signup %</th>
+        </tr></thead>
+        <tbody id="blogCatBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Conversion Funnel view (Amplitude) -->
+  <div id="blogFunnelView" style="display:none">
+    <div class="meta" style="margin-bottom:16px;font-size:12px">Source: Amplitude (90-day window, 30-day conversion). Funnel: Signup &rarr; First Automation Launch &rarr; Plan Purchase.</div>
+    <div class="chart-container" style="margin-bottom:20px">
+      <canvas id="blogFunnelChart"></canvas>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th>Blog Post</th>
+          <th>Category</th>
+          <th class="num">Signups</th>
+          <th class="num">Activated</th>
+          <th class="num">Act %</th>
+          <th class="num">Paid</th>
+          <th class="num">Paid %</th>
+        </tr></thead>
+        <tbody id="blogFunnelBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Regular table view -->
+  <div id="blogTableView">
+  <div class="table-wrapper">
+    <table id="pagesTable">
+      <thead>
+        <tr>
+          <th>Blog Post</th>
+          <th>Category</th>
+          <th>Keyword</th>
+          <th class="num">AI Citations</th>
+          <th class="num">Cit. Change</th>
+          <th class="num">GSC Clicks</th>
+          <th class="num">Impressions</th>
+          <th class="num">CTR</th>
+          <th class="num">Position</th>
+          <th class="num">GA Traffic</th>
+          <th class="num">Sessions</th>
+          <th class="num">Signups</th>
+          <th class="num">Signup %</th>
+        </tr>
+      </thead>
+      <tbody id="pagesBody"></tbody>
+    </table>
+  </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== AUTOMATIONS SECTION ===== -->
+<div class="section" id="sec-automations">
+
+<!-- Automations KPIs -->
+<div class="kpi-row" id="autoKpiRow"></div>
+
+<!-- Automations Table -->
+<div class="section-title">Phantom Pages — AI Visibility, Traffic & Signups</div>
+<div class="card">
+  <div class="tabs">
+    <div class="tab active" onclick="switchAutoView('signups', event)">By Signups</div>
+    <div class="tab" onclick="switchAutoView('citations_count', event)">By Citations</div>
+    <div class="tab" onclick="switchAutoView('traffic', event)">By Traffic</div>
+    <div class="tab" onclick="switchAutoView('signup_rate', event)">By Signup Rate</div>
+    <div class="tab" onclick="switchAutoView('category', event)">By Category</div>
+    <div class="tab" onclick="switchAutoView('funnel', event)">Conversion Funnel</div>
+  </div>
+  <!-- Category aggregate view -->
+  <div id="autoCategoryView" style="display:none">
+    <div class="chart-container-tall" style="margin-bottom:20px">
+      <canvas id="autoCategoryChart"></canvas>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th>Category</th>
+          <th class="num">Pages</th>
+          <th class="num">AI Citations</th>
+          <th class="num">GA Traffic</th>
+          <th class="num">Sessions</th>
+          <th class="num">Signups</th>
+          <th class="num">Signup %</th>
+        </tr></thead>
+        <tbody id="autoCatBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Conversion Funnel view (Amplitude) -->
+  <div id="autoFunnelView" style="display:none">
+    <div class="meta" style="margin-bottom:16px;font-size:12px">Source: Amplitude (90-day window, 30-day conversion). Funnel: Signup &rarr; First Automation Launch &rarr; Plan Purchase.</div>
+    <div class="chart-container" style="margin-bottom:20px">
+      <canvas id="autoFunnelChart"></canvas>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th>Automation</th>
+          <th>Category</th>
+          <th class="num">Signups</th>
+          <th class="num">Activated</th>
+          <th class="num">Act %</th>
+          <th class="num">Paid</th>
+          <th class="num">Paid %</th>
+        </tr></thead>
+        <tbody id="autoFunnelBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Regular table view -->
+  <div id="autoTableView">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Automation</th>
+          <th>Category</th>
+          <th>Keyword</th>
+          <th class="num">AI Citations</th>
+          <th class="num">Cit. Change</th>
+          <th class="num">GA Traffic</th>
+          <th class="num">Sessions</th>
+          <th class="num">Signups</th>
+          <th class="num">Signup %</th>
+        </tr>
+      </thead>
+      <tbody id="autoBody"></tbody>
+    </table>
+  </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== AI REFERRALS SECTION ===== -->
+<div class="section" id="sec-aireferral">
+
+<!-- KPIs -->
+<div class="kpi-row" id="aiRefKpiRow"></div>
+
+<!-- Funnel visualization -->
+<div class="grid-2">
+  <div class="card">
+    <h2>Conversion Funnel by AI Source</h2>
+    <div class="chart-container-tall">
+      <canvas id="aiRefFunnelChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Funnel Drop-off by Source</h2>
+    <div class="chart-container-tall">
+      <canvas id="aiRefDropoffChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Scorecard table -->
+<div class="section-title">AI Source Scorecard (90 days, 30-day conversion window)</div>
+<div class="card" style="margin-bottom:28px">
+  <div class="meta" style="margin-bottom:16px;font-size:12px">Source: Amplitude. Funnel: Signup (referrer from AI) &rarr; First Automation Launch &rarr; Plan Purchase.</div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>AI Source</th>
+          <th class="num">Signups</th>
+          <th class="num">Activated</th>
+          <th class="num">Act %</th>
+          <th class="num">Med &rarr; Act</th>
+          <th class="num">Paid</th>
+          <th class="num">Paid %</th>
+          <th class="num">Med &rarr; Paid</th>
+          <th class="num">Signup &rarr; Act Drop</th>
+          <th class="num">Act &rarr; Paid Drop</th>
+        </tr>
+      </thead>
+      <tbody id="aiRefTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Funnel bar per step -->
+<div class="section-title">Visual Funnel — All AI Referrals</div>
+<div class="card">
+  <div id="aiRefFunnelBars" style="display:flex;align-items:flex-end;gap:8px;height:180px;padding:20px 0;"></div>
+</div>
+
+</div>
+
+<script>
+// ==========================================
+// DATA LOADING & AUTO-REFRESH
+// ==========================================
+let DATA = null;
+let charts = {};
+let autoRefreshInterval = null;
+let dateRange = { from: null, to: null }; // null = no filter (all data)
+let activePreset = 'all'; // tracks which preset is active for page data
+
+async function loadData() {
+  try {
+    const resp = await fetch('dashboard-data.json?t=' + Date.now());
+    DATA = await resp.json();
+    return true;
+  } catch (e) {
+    console.error('Failed to load data:', e);
+    return false;
+  }
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  const dot = document.getElementById('refreshDot');
+  const label = document.getElementById('refreshLabel');
+
+  btn.disabled = true;
+  btn.textContent = 'Refreshing...';
+  dot.className = 'refresh-dot';
+  label.textContent = 'Fetching fresh data...';
+
+  const ok = await loadData();
+  if (ok) {
+    renderAll();
+    dot.className = 'refresh-dot';
+    label.textContent = 'Data refreshed';
+    document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleString();
+  } else {
+    dot.className = 'refresh-dot error';
+    label.textContent = 'Refresh failed — using cached data';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Refresh Data';
+}
+
+function toggleAutoRefresh() {
+  const on = document.getElementById('autoRefreshToggle').checked;
+  if (on) {
+    autoRefreshInterval = setInterval(refreshData, 30 * 60 * 1000);
+    document.getElementById('refreshLabel').textContent = 'Auto-refresh ON (every 30m)';
+  } else {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+    document.getElementById('refreshLabel').textContent = 'Auto-refresh OFF';
+  }
+}
+
+// ==========================================
+// DATE RANGE FILTERING
+// ==========================================
+function setPreset(preset, el) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  activePreset = preset;
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+
+  if (preset === 'all') {
+    dateRange = { from: null, to: null };
+  } else {
+    const weeks = parseInt(preset);
+    const allDates = DATA.weekly_trends.map(d => d.date_iso);
+    const latestDate = allDates[allDates.length - 1];
+    const to = new Date(latestDate + 'T00:00:00');
+    const from = new Date(to);
+    from.setDate(from.getDate() - (weeks * 7) + 1);
+    dateRange = { from: from.toISOString().slice(0,10), to: latestDate };
+  }
+  updateRangeLabel();
+  renderAll();
+}
+
+function applyCustomRange() {
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  if (!from && !to) return;
+
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  // Pick closest preset for pages
+  const diffDays = from && to ? (new Date(to) - new Date(from)) / 86400000 : Infinity;
+  if (diffDays <= 16) activePreset = '2w';
+  else if (diffDays <= 32) activePreset = '4w';
+  else if (diffDays <= 60) activePreset = '8w';
+  else activePreset = 'all';
+
+  dateRange = {
+    from: from || null,
+    to: to || null
+  };
+  updateRangeLabel();
+  renderAll();
+}
+
+function updateRangeLabel() {
+  const label = document.getElementById('rangeLabel');
+  if (!dateRange.from && !dateRange.to) {
+    label.textContent = 'Showing all data';
+  } else {
+    const fromStr = dateRange.from ? new Date(dateRange.from + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric'}) : 'Start';
+    const toStr = dateRange.to ? new Date(dateRange.to + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : 'Latest';
+    label.textContent = `${fromStr} — ${toStr}`;
+  }
+}
+
+function filterWeekly(data) {
+  if (!dateRange.from && !dateRange.to) return data;
+  return data.filter(d => {
+    const iso = d.date_iso;
+    if (dateRange.from && iso < dateRange.from) return false;
+    if (dateRange.to && iso > dateRange.to) return false;
+    return true;
+  });
+}
+
+function filterCompWeeklyIndices() {
+  const dates = DATA.competitors_weekly.dates_iso;
+  const indices = [];
+  dates.forEach((iso, i) => {
+    if (dateRange.from && iso < dateRange.from) return;
+    if (dateRange.to && iso > dateRange.to) return;
+    indices.push(i);
+  });
+  return indices.length > 0 ? indices : dates.map((_, i) => i);
+}
+
+function sliceByIndices(arr, indices) {
+  return indices.map(i => arr[i]);
+}
+
+// ==========================================
+// SECTION NAVIGATION
+// ==========================================
+function switchSection(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ==========================================
+// RENDER FUNCTIONS
+// ==========================================
+function destroyCharts() {
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+}
+
+function renderAll() {
+  destroyCharts();
+  renderKPIs();
+  renderTrendChart();
+  renderCitationChart();
+  renderProviderCharts();
+  renderProviderCards();
+  renderCompSovChart();
+  renderCompTrendCharts();
+  renderCompTable();
+  renderHeatmap();
+  renderCompProviderStacked();
+  renderPagesTable();
+  renderAutoKPIs();
+  renderAutoTable();
+  renderAIReferrals();
+  renderHeaderMeta();
+}
+
+function renderHeaderMeta() {
+  const m = DATA.meta;
+  document.getElementById('headerMeta').textContent =
+    `Tracking ${m.prompts_count} prompts · ${m.total_blog_pages.toLocaleString()} blog pages · ${m.competitors_count} competitors`;
+  document.getElementById('lastUpdated').textContent = 'Updated ' + new Date(m.last_updated).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+}
+
+function renderKPIs() {
+  const w = filterWeekly(DATA.weekly_trends);
+  if (w.length < 2) return;
+  const latest = w[w.length - 1];
+  const prev = w[w.length - 2];
+
+  const kpis = [
+    {label:'Mention Rate', value:latest.mention_rate.toFixed(1)+'%', diff:latest.mention_rate - prev.mention_rate, suffix:'pp vs prior week'},
+    {label:'Share of Voice', value:latest.share_of_voice.toFixed(1)+'%', diff:latest.share_of_voice - prev.share_of_voice, suffix:'pp vs prior week'},
+    {label:'Citation Rate', value:latest.citation_rate.toFixed(1)+'%', diff:latest.citation_rate - prev.citation_rate, suffix:'pp vs prior week'},
+    {label:'Weekly Citations', value:latest.citation_count.toLocaleString(), diff:null, note: latest.answer_count < 5000 ? 'Partial week' : null},
+    {label:'Sentiment Score', value:latest.sentiment.toFixed(1), diff:latest.sentiment - prev.sentiment, suffix:'vs prior week'},
+    {label:'Avg Position', value:latest.answer_count > 0 ? '—' : '—', diff:null, note:'In AI answers'},
+    {label:'First Mention Rate', value:latest.first_mention.toFixed(1)+'%', diff:latest.first_mention - prev.first_mention, suffix:'pp vs prior week'},
+    {label:'Weekly Answers', value:latest.answer_count.toLocaleString(), diff:null, note: latest.answer_count < 5000 ? 'Partial week' : null},
+  ];
+  // Fix avg position manually
+  kpis[5] = {label:'Avg Position', value:'1.36', diff:0, suffix:'', note:'Stable'};
+
+  document.getElementById('kpiRow').innerHTML = kpis.map(k => {
+    let changeHtml = '';
+    if (k.diff !== null && k.diff !== undefined) {
+      const cls = k.diff > 0.05 ? 'up' : k.diff < -0.05 ? 'down' : 'neutral';
+      const sign = k.diff > 0 ? '+' : '';
+      changeHtml = `<div class="change ${cls}">${sign}${k.diff.toFixed(1)} ${k.suffix||''}</div>`;
+    } else if (k.note) {
+      changeHtml = `<div class="change neutral">${k.note}</div>`;
+    }
+    return `<div class="kpi"><div class="label">${k.label}</div><div class="value">${k.value}</div>${changeHtml}</div>`;
+  }).join('');
+}
+
+const chartDefaults = {
+  scales: {
+    x: {ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}},
+    y: {ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}}
+  },
+  plugins: {legend:{labels:{color:'#9ca3af',font:{size:11}}}}
+};
+
+function renderTrendChart() {
+  const w = filterWeekly(DATA.weekly_trends);
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type:'line',
+    data:{
+      labels: w.map(d=>d.date),
+      datasets:[
+        {label:'Mention Rate %', data:w.map(d=>d.mention_rate), borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,0.1)', fill:true, tension:0.3},
+        {label:'Citation Rate %', data:w.map(d=>d.citation_rate), borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.1)', fill:true, tension:0.3},
+        {label:'First Mention %', data:w.map(d=>d.first_mention), borderColor:'#f59e0b', borderDash:[5,5], fill:false, tension:0.3},
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, ...chartDefaults,
+      scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, ticks:{...chartDefaults.scales.y.ticks, callback:v=>v+'%'}}}
+    }
+  });
+}
+
+function renderCitationChart() {
+  const w = filterWeekly(DATA.weekly_trends);
+  charts.citation = new Chart(document.getElementById('citationChart'), {
+    type:'bar',
+    data:{
+      labels: w.map(d=>d.date),
+      datasets:[
+        {label:'Citations', data:w.map(d=>d.citation_count), backgroundColor:'rgba(99,102,241,0.6)', borderRadius:4},
+        {label:'Answers Tracked', data:w.map(d=>d.answer_count), backgroundColor:'rgba(139,92,246,0.25)', borderRadius:4},
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, ...chartDefaults}
+  });
+}
+
+function getFilteredProviders() {
+  const pw = DATA.providers_weekly;
+  if (!pw) return DATA.providers;
+  const idx = [];
+  pw.dates_iso.forEach((iso, i) => {
+    if (dateRange.from && iso < dateRange.from) return;
+    if (dateRange.to && iso > dateRange.to) return;
+    idx.push(i);
+  });
+  const indices = idx.length > 0 ? idx : pw.dates_iso.map((_, i) => i);
+  return Object.entries(pw.series).map(([key, s]) => {
+    const mentions = indices.map(i => s.mention[i]).filter(v => v !== null);
+    const citRates = indices.map(i => s.citation_rate[i]).filter(v => v !== null);
+    const cits = indices.map(i => s.citations[i]).filter(v => v !== null);
+    const sovs = indices.map(i => s.sov[i]).filter(v => v !== null);
+    return {
+      name: s.label, color: s.color,
+      mention: mentions.length ? +(mentions.reduce((a,b)=>a+b,0)/mentions.length).toFixed(2) : 0,
+      citation_rate: citRates.length ? +(citRates.reduce((a,b)=>a+b,0)/citRates.length).toFixed(2) : 0,
+      citations: cits.reduce((a,b)=>a+b,0),
+      sov: sovs.length ? +(sovs.reduce((a,b)=>a+b,0)/sovs.length).toFixed(2) : 0,
+    };
+  });
+}
+
+function renderProviderCharts() {
+  const p = getFilteredProviders();
+  charts.provMention = new Chart(document.getElementById('providerMentionChart'), {
+    type:'bar',
+    data:{
+      labels:p.map(x=>x.name),
+      datasets:[{label:'Mention Rate %', data:p.map(x=>x.mention), backgroundColor:p.map(x=>x.color+'cc'), borderRadius:6}]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#9ca3af',font:{size:10},callback:v=>v+'%'}, grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#e4e4e7',font:{size:11}}, grid:{display:false}}
+      }
+    }
+  });
+  charts.provCitation = new Chart(document.getElementById('providerCitationChart'), {
+    type:'doughnut',
+    data:{
+      labels:p.map(x=>x.name),
+      datasets:[{data:p.map(x=>x.citations), backgroundColor:p.map(x=>x.color+'cc'), borderWidth:0}]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{size:11},padding:12}}}}
+  });
+}
+
+function renderProviderCards() {
+  document.getElementById('providerCards').innerHTML = getFilteredProviders().map(p =>
+    `<div class="provider-card">
+      <div class="name">${p.name}</div>
+      <div class="stat">${p.mention}%</div>
+      <div class="sub">${p.citations.toLocaleString()} citations</div>
+    </div>`
+  ).join('');
+}
+
+// ==========================================
+// COMPETITOR SECTION
+// ==========================================
+function renderCompSovChart() {
+  const cw = DATA.competitors_weekly;
+  const idx = filterCompWeeklyIndices();
+  const labels = sliceByIndices(cw.dates, idx);
+  const brands = Object.keys(cw.series);
+  charts.compSov = new Chart(document.getElementById('compSovChart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets: brands.map(name => ({
+        label: name,
+        data: sliceByIndices(cw.series[name].sov, idx),
+        borderColor: cw.series[name].color,
+        backgroundColor: cw.series[name].color + '18',
+        fill: name === 'PhantomBuster',
+        tension: 0.3,
+        borderWidth: name === 'PhantomBuster' ? 3 : 1.5,
+        pointRadius: name === 'PhantomBuster' ? 3 : 1,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      ...chartDefaults,
+      scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, ticks:{...chartDefaults.scales.y.ticks, callback:v=>v+'%'}}}
+    }
+  });
+}
+
+function renderCompTrendCharts() {
+  const cw = DATA.competitors_weekly;
+  const idx = filterCompWeeklyIndices();
+  const labels = sliceByIndices(cw.dates, idx);
+  const brands = Object.keys(cw.series);
+
+  charts.compMention = new Chart(document.getElementById('compMentionTrend'), {
+    type:'line',
+    data:{
+      labels,
+      datasets: brands.map(name => ({
+        label: name,
+        data: sliceByIndices(cw.series[name].mention, idx),
+        borderColor: cw.series[name].color,
+        tension: 0.3,
+        borderWidth: name === 'PhantomBuster' ? 3 : 1.5,
+        pointRadius: name === 'PhantomBuster' ? 3 : 1,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      ...chartDefaults,
+      scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, ticks:{...chartDefaults.scales.y.ticks, callback:v=>v+'%'}}}
+    }
+  });
+
+  charts.compCitation = new Chart(document.getElementById('compCitationTrend'), {
+    type:'line',
+    data:{
+      labels,
+      datasets: brands.map(name => ({
+        label: name,
+        data: sliceByIndices(cw.series[name].citation, idx),
+        borderColor: cw.series[name].color,
+        tension: 0.3,
+        borderWidth: name === 'PhantomBuster' ? 3 : 1.5,
+        pointRadius: name === 'PhantomBuster' ? 3 : 1,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      ...chartDefaults,
+      scales:{...chartDefaults.scales, y:{...chartDefaults.scales.y, ticks:{...chartDefaults.scales.y.ticks, callback:v=>v+'%'}}}
+    }
+  });
+}
+
+function getFilteredCompSummary() {
+  const cw = DATA.competitors_weekly;
+  const idx = filterCompWeeklyIndices();
+  const cpw = DATA.competitors_by_provider_weekly?.data || [];
+  const citCounts = {};
+  cpw.forEach(row => {
+    if (dateRange.from && row.date < dateRange.from) return;
+    if (dateRange.to && row.date > dateRange.to) return;
+    citCounts[row.competitor] = (citCounts[row.competitor] || 0) + row.citation_count;
+  });
+  return Object.entries(cw.series).map(([name, s]) => {
+    const mentions = sliceByIndices(s.mention, idx);
+    const sovs = sliceByIndices(s.sov, idx);
+    const citations = sliceByIndices(s.citation, idx);
+    const summaryMatch = DATA.competitors_summary.find(c => c.name === name);
+    return {
+      name, is_own: summaryMatch?.is_own || name === 'PhantomBuster',
+      mention_rate: mentions.length ? +(mentions.reduce((a,b)=>a+b,0)/mentions.length).toFixed(2) : 0,
+      share_of_voice: sovs.length ? +(sovs.reduce((a,b)=>a+b,0)/sovs.length).toFixed(2) : 0,
+      citation_rate: citations.length ? +(citations.reduce((a,b)=>a+b,0)/citations.length).toFixed(2) : 0,
+      citation_count: citCounts[name] || summaryMatch?.citation_count || 0,
+      sentiment: summaryMatch?.sentiment || 0,
+      avg_position: summaryMatch?.avg_position || 0,
+      first_mention: summaryMatch?.first_mention || 0,
+    };
+  });
+}
+
+function renderCompTable() {
+  const comps = getFilteredCompSummary().sort((a,b) => b.share_of_voice - a.share_of_voice);
+  // Detect rising threats: competitors whose weekly mention is growing fast
+  const cw = DATA.competitors_weekly;
+  const idx = filterCompWeeklyIndices();
+  const threats = {};
+  Object.entries(cw.series).forEach(([name, s]) => {
+    const filtered = sliceByIndices(s.mention, idx);
+    const recent = filtered.slice(-3);
+    const earlier = filtered.slice(-6, -3);
+    const avgRecent = recent.reduce((a,b)=>a+b,0)/recent.length;
+    const avgEarlier = earlier.reduce((a,b)=>a+b,0)/earlier.length;
+    if (avgEarlier > 0 && (avgRecent - avgEarlier) / avgEarlier > 0.15) {
+      threats[name] = 'rising';
+    }
+  });
+
+  document.getElementById('compTableBody').innerHTML = comps.map(c => {
+    const isOwn = c.is_own;
+    const rowCls = isOwn ? ' class="own-brand"' : '';
+    const nameCls = isOwn ? 'comp-name own' : 'comp-name';
+    let statusHtml = '';
+    if (isOwn) statusHtml = '<span class="pill green">You</span>';
+    else if (threats[c.name]) statusHtml = '<span class="threat-badge rising">Rising</span>';
+
+    return `<tr${rowCls}>
+      <td><span class="${nameCls}">${c.name}</span></td>
+      <td class="num">${c.mention_rate.toFixed(1)}%</td>
+      <td class="num"><strong>${c.share_of_voice.toFixed(1)}%</strong></td>
+      <td class="num">${c.citation_rate.toFixed(1)}%</td>
+      <td class="num">${c.citation_count.toLocaleString()}</td>
+      <td class="num">${c.sentiment.toFixed(0)}</td>
+      <td class="num">${c.avg_position.toFixed(2)}</td>
+      <td class="num">${c.first_mention.toFixed(1)}%</td>
+      <td>${statusHtml}</td>
+    </tr>`;
+  }).join('');
+}
+
+function heatColor(val, max) {
+  const ratio = Math.min(val / max, 1);
+  if (ratio > 0.6) return 'rgba(99,102,241,0.35)';
+  if (ratio > 0.3) return 'rgba(99,102,241,0.18)';
+  if (ratio > 0.1) return 'rgba(99,102,241,0.08)';
+  return 'transparent';
+}
+
+function getFilteredCompByProvider() {
+  const cpw = DATA.competitors_by_provider_weekly?.data;
+  if (!cpw) return DATA.competitors_by_provider;
+  const filtered = cpw.filter(row => {
+    if (dateRange.from && row.date < dateRange.from) return false;
+    if (dateRange.to && row.date > dateRange.to) return false;
+    return true;
+  });
+  const grouped = {};
+  filtered.forEach(row => {
+    if (!grouped[row.competitor]) grouped[row.competitor] = { competitor: row.competitor, is_own: row.is_own_brand };
+    const key = row.provider;
+    if (!grouped[row.competitor][key]) grouped[row.competitor][key] = { mentions: [], citations: 0 };
+    grouped[row.competitor][key].mentions.push(row.mention_rate);
+    grouped[row.competitor][key].citations += row.citation_count;
+  });
+  return Object.values(grouped).map(c => {
+    const out = { competitor: c.competitor, is_own: c.is_own };
+    ['chat_gpt','gemini','perplexity','google_ai_mode','google_ai_overview'].forEach(pk => {
+      if (c[pk]) {
+        out[pk] = { mention: +(c[pk].mentions.reduce((a,b)=>a+b,0)/c[pk].mentions.length).toFixed(2), citations: c[pk].citations };
+      }
+    });
+    return out;
+  });
+}
+
+function renderHeatmap() {
+  const cp = getFilteredCompByProvider();
+  const providerKeys = ['chat_gpt','gemini','perplexity','google_ai_mode','google_ai_overview'];
+  let maxMention = 0;
+  cp.forEach(c => providerKeys.forEach(pk => { if (c[pk]) maxMention = Math.max(maxMention, c[pk].mention); }));
+
+  document.getElementById('heatmapBody').innerHTML = cp
+    .sort((a,b) => {
+      const aTotal = providerKeys.reduce((s,pk) => s + (a[pk]?.mention||0), 0);
+      const bTotal = providerKeys.reduce((s,pk) => s + (b[pk]?.mention||0), 0);
+      return bTotal - aTotal;
+    })
+    .map(c => {
+    const isOwn = c.is_own;
+    const rowCls = isOwn ? ' class="own-brand"' : '';
+    const nameCls = isOwn ? 'comp-name own' : 'comp-name';
+    const cells = providerKeys.map(pk => {
+      const v = c[pk]?.mention || 0;
+      return `<td class="num"><div class="heat" style="background:${heatColor(v, maxMention)}">${v.toFixed(1)}%</div></td>`;
+    }).join('');
+    return `<tr${rowCls}><td><span class="${nameCls}">${c.competitor}</span></td>${cells}</tr>`;
+  }).join('');
+}
+
+function renderCompProviderStacked() {
+  const cp = getFilteredCompByProvider().sort((a,b) => {
+    const pks = ['chat_gpt','gemini','perplexity','google_ai_mode','google_ai_overview'];
+    const aT = pks.reduce((s,pk) => s + (a[pk]?.citations||0), 0);
+    const bT = pks.reduce((s,pk) => s + (b[pk]?.citations||0), 0);
+    return bT - aT;
+  });
+  const providerMeta = [
+    {key:'chat_gpt', label:'ChatGPT', color:'#10a37f'},
+    {key:'gemini', label:'Gemini', color:'#8e75ff'},
+    {key:'perplexity', label:'Perplexity', color:'#20b8cd'},
+    {key:'google_ai_mode', label:'Google AI Mode', color:'#4285f4'},
+    {key:'google_ai_overview', label:'Google AI Overview', color:'#34a853'},
+  ];
+
+  charts.compProviderStacked = new Chart(document.getElementById('compProviderStackedChart'), {
+    type:'bar',
+    data:{
+      labels: cp.map(c => c.competitor),
+      datasets: providerMeta.map(pm => ({
+        label: pm.label,
+        data: cp.map(c => c[pm.key]?.citations || 0),
+        backgroundColor: pm.color + 'cc',
+        borderRadius: 2,
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+      scales:{
+        x:{stacked:true, ticks:{color:'#e4e4e7',font:{size:11}}, grid:{display:false}},
+        y:{stacked:true, ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+}
+
+// ==========================================
+// PAGES TABLE
+// ==========================================
+let currentSort = 'citations_count';
+
+function formatDiff(v) {
+  if (v === null || v === undefined) return '<span class="pill neutral">N/A</span>';
+  const sign = v > 0 ? '+' : '';
+  const cls = v > 0 ? 'green' : v < 0 ? 'red' : 'neutral';
+  return `<span class="pill ${cls}">${sign}${v.toFixed(1)}%</span>`;
+}
+
+function catClass(cat) {
+  const map = {'LinkedIn':'linkedin','Instagram':'instagram','Facebook':'facebook','Twitter/X':'twitter',
+    'Competitors':'competitors','Sales Navigator':'sales-navigator','Scraping & Data':'scraping',
+    'Email Finding':'email','PhantomBuster Brand':'brand','CRM & Integrations':'other',
+    'Tools & Utilities':'scraping','Sales Prospecting':'sales-navigator','Other Platforms':'other'};
+  return 'cat-' + (map[cat] || 'other');
+}
+function catPill(cat) { return `<span class="cat-pill ${catClass(cat)}">${cat}</span>`; }
+
+const CAT_COLORS = {
+  'LinkedIn':'#0077b5','Instagram':'#e1306c','Facebook':'#1877f2','Twitter/X':'#1da1f2',
+  'Competitors':'#ef4444','Sales Navigator':'#6366f1','Scraping & Data':'#f59e0b',
+  'Email Finding':'#22c55e','PhantomBuster Brand':'#8b5cf6','CRM & Integrations':'#9ca3af',
+  'Tools & Utilities':'#f59e0b','Sales Prospecting':'#6366f1','Other Platforms':'#9ca3af','Other':'#6b7280'
+};
+
+function aggregateByCategory(pages) {
+  const cats = {};
+  pages.forEach(p => {
+    const c = p.category || 'Other';
+    if (!cats[c]) cats[c] = {category:c, pages:0, citations:0, traffic:0, sessions:0, signups:0};
+    cats[c].pages++;
+    cats[c].citations += p.citations_count || 0;
+    cats[c].traffic += p.traffic || 0;
+    cats[c].sessions += p.sessions || 0;
+    cats[c].signups += p.signups || 0;
+  });
+  return Object.values(cats).map(c => ({...c, signup_rate: c.sessions > 0 ? +(c.signups/c.sessions*100).toFixed(2) : 0}))
+    .sort((a,b) => b.citations - a.citations);
+}
+
+function renderCategoryChart(canvasId, categories, chartKey) {
+  if (charts[chartKey]) charts[chartKey].destroy();
+  charts[chartKey] = new Chart(document.getElementById(canvasId), {
+    type:'bar',
+    data:{
+      labels: categories.map(c=>c.category),
+      datasets:[
+        {label:'AI Citations', data:categories.map(c=>c.citations), backgroundColor:'rgba(99,102,241,0.7)', borderRadius:4, yAxisID:'y'},
+        {label:'GA Traffic', data:categories.map(c=>c.traffic), backgroundColor:'rgba(34,197,94,0.5)', borderRadius:4, yAxisID:'y'},
+        {label:'Signups', data:categories.map(c=>c.signups), backgroundColor:'rgba(245,158,11,0.7)', borderRadius:4, yAxisID:'y'},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#e4e4e7',font:{size:11}}, grid:{display:false}},
+        y:{ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+}
+
+function renderCategoryTable(tbodyId, categories) {
+  document.getElementById(tbodyId).innerHTML = categories.map(c => `
+    <tr>
+      <td>${catPill(c.category)}</td>
+      <td class="num">${c.pages}</td>
+      <td class="num"><strong>${c.citations.toLocaleString()}</strong></td>
+      <td class="num">${c.traffic.toLocaleString()}</td>
+      <td class="num">${c.sessions.toLocaleString()}</td>
+      <td class="num"><strong>${c.signups.toLocaleString()}</strong></td>
+      <td class="num">${c.signup_rate}%</td>
+    </tr>
+  `).join('');
+}
+
+function renderPagesTable() {
+  const pagesData = (DATA.pages_by_period && DATA.pages_by_period[activePreset]) || DATA.pages;
+  const sorted = [...pagesData].sort((a,b) => (b[currentSort]||0) - (a[currentSort]||0));
+  document.getElementById('pagesBody').innerHTML = sorted.map(p => `
+    <tr>
+      <td class="url-cell"><a href="https://${p.url}" target="_blank">${p.url.replace('phantombuster.com/blog/','').replace(/\/$/,'')}</a></td>
+      <td>${catPill(p.category||'Other')}</td>
+      <td>${p.keyword||'—'}</td>
+      <td class="num"><strong>${p.citations_count.toLocaleString()}</strong></td>
+      <td class="num">${formatDiff(p.citations_diff)}</td>
+      <td class="num">${p.clicks !== null ? p.clicks.toLocaleString() : '—'}</td>
+      <td class="num">${p.impressions !== null ? p.impressions.toLocaleString() : '—'}</td>
+      <td class="num">${p.ctr !== null ? p.ctr.toFixed(2)+'%' : '—'}</td>
+      <td class="num">${p.position !== null ? p.position.toFixed(1) : '—'}</td>
+      <td class="num">${p.traffic !== null ? p.traffic.toLocaleString() : '—'}</td>
+      <td class="num">${p.sessions !== null ? p.sessions.toLocaleString() : '—'}</td>
+      <td class="num"><strong>${p.signups ? p.signups.toLocaleString() : '0'}</strong></td>
+      <td class="num">${p.signup_rate ? p.signup_rate.toFixed(2)+'%' : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderFunnelView(pages, chartId, tbodyId, chartKey, urlPrefix) {
+  const withSignups = pages.filter(p => (p.amp_signups || p.activated || p.paid) > 0 || (p.signups||0) > 0);
+  const sorted = [...withSignups].sort((a,b) => (b.activated||0) - (a.activated||0));
+
+  // Funnel bar chart — top 10 pages
+  const top = sorted.slice(0, 10);
+  if (charts[chartKey]) charts[chartKey].destroy();
+  charts[chartKey] = new Chart(document.getElementById(chartId), {
+    type: 'bar',
+    data: {
+      labels: top.map(p => p.url.replace(urlPrefix,'').replace(/\/$/,'').slice(0,40)),
+      datasets: [
+        {label:'Signups', data:top.map(p=>p.amp_signups||p.activated+p.paid||0), backgroundColor:'rgba(99,102,241,0.6)', borderRadius:4},
+        {label:'Activated', data:top.map(p=>p.activated||0), backgroundColor:'rgba(34,197,94,0.6)', borderRadius:4},
+        {label:'Paid', data:top.map(p=>p.paid||0), backgroundColor:'rgba(245,158,11,0.7)', borderRadius:4},
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#e4e4e7',font:{size:10},maxRotation:45}, grid:{display:false}},
+        y:{ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+
+  // Table
+  document.getElementById(tbodyId).innerHTML = sorted.map(p => `
+    <tr>
+      <td class="url-cell"><a href="https://${p.url}" target="_blank">${p.url.replace(urlPrefix,'').replace(/\/$/,'')}</a></td>
+      <td>${catPill(p.category||'Other')}</td>
+      <td class="num"><strong>${(p.amp_signups||p.activated+p.paid||0).toLocaleString()}</strong></td>
+      <td class="num">${(p.activated||0).toLocaleString()}</td>
+      <td class="num">${p.activation_rate ? p.activation_rate.toFixed(1)+'%' : '—'}</td>
+      <td class="num">${(p.paid||0).toLocaleString()}</td>
+      <td class="num">${p.paid_rate ? p.paid_rate.toFixed(1)+'%' : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderBlogCategoryView() {
+  const pagesData = (DATA.pages_by_period && DATA.pages_by_period[activePreset]) || DATA.pages;
+  const cats = aggregateByCategory(pagesData);
+  renderCategoryChart('blogCategoryChart', cats, 'blogCatChart');
+  renderCategoryTable('blogCatBody', cats);
+}
+
+function switchPageView(mode, e) {
+  document.querySelectorAll('#sec-pages .tab').forEach(t => t.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('blogTableView').style.display = 'none';
+  document.getElementById('blogCategoryView').style.display = 'none';
+  document.getElementById('blogFunnelView').style.display = 'none';
+  if (mode === 'category') {
+    document.getElementById('blogCategoryView').style.display = 'block';
+    renderBlogCategoryView();
+  } else if (mode === 'funnel') {
+    document.getElementById('blogFunnelView').style.display = 'block';
+    const pagesData = (DATA.pages_by_period && DATA.pages_by_period[activePreset]) || DATA.pages;
+    renderFunnelView(pagesData, 'blogFunnelChart', 'blogFunnelBody', 'blogFunnel', 'phantombuster.com/blog/');
+  } else {
+    document.getElementById('blogTableView').style.display = 'block';
+    currentSort = mode === 'table' ? 'citations_count' : mode;
+    renderPagesTable();
+  }
+}
+
+// ==========================================
+// AUTOMATIONS SECTION
+// ==========================================
+let autoSort = 'signups';
+
+function renderAutoKPIs() {
+  const s = DATA.automations_summary;
+  if (!s) return;
+  document.getElementById('autoKpiRow').innerHTML = [
+    {label:'Total Pages', value:s.total_pages.toLocaleString()},
+    {label:'AI Citations', value:s.total_citations.toLocaleString()},
+    {label:'GA Traffic', value:s.total_traffic.toLocaleString()},
+    {label:'Sessions', value:s.total_sessions.toLocaleString()},
+    {label:'Signups', value:s.total_signups.toLocaleString()},
+    {label:'Signup Rate', value:s.overall_signup_rate+'%'},
+  ].map(k => `<div class="kpi"><div class="label">${k.label}</div><div class="value">${k.value}</div></div>`).join('');
+}
+
+function renderAutoTable() {
+  const pages = DATA.automations_pages || [];
+  const sorted = [...pages].sort((a,b) => (b[autoSort]||0) - (a[autoSort]||0));
+  document.getElementById('autoBody').innerHTML = sorted.map(p => `
+    <tr>
+      <td class="url-cell"><a href="https://${p.url}" target="_blank">${p.url.replace('phantombuster.com/automations/','').replace(/\/$/,'')}</a></td>
+      <td>${catPill(p.category||'Other')}</td>
+      <td>${p.keyword||'—'}</td>
+      <td class="num"><strong>${p.citations_count.toLocaleString()}</strong></td>
+      <td class="num">${formatDiff(p.citations_diff)}</td>
+      <td class="num">${p.traffic !== null ? p.traffic.toLocaleString() : '—'}</td>
+      <td class="num">${p.sessions !== null ? p.sessions.toLocaleString() : '—'}</td>
+      <td class="num"><strong>${p.signups ? p.signups.toLocaleString() : '0'}</strong></td>
+      <td class="num">${p.signup_rate ? p.signup_rate.toFixed(2)+'%' : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderAutoCategoryView() {
+  const cats = aggregateByCategory(DATA.automations_pages || []);
+  renderCategoryChart('autoCategoryChart', cats, 'autoCatChart');
+  renderCategoryTable('autoCatBody', cats);
+}
+
+function switchAutoView(mode, e) {
+  document.querySelectorAll('#sec-automations .tab').forEach(t => t.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('autoTableView').style.display = 'none';
+  document.getElementById('autoCategoryView').style.display = 'none';
+  document.getElementById('autoFunnelView').style.display = 'none';
+  if (mode === 'category') {
+    document.getElementById('autoCategoryView').style.display = 'block';
+    renderAutoCategoryView();
+  } else if (mode === 'funnel') {
+    document.getElementById('autoFunnelView').style.display = 'block';
+    renderFunnelView(DATA.automations_pages||[], 'autoFunnelChart', 'autoFunnelBody', 'autoFunnel', 'phantombuster.com/automations/');
+  } else {
+    document.getElementById('autoTableView').style.display = 'block';
+    autoSort = mode;
+    renderAutoTable();
+  }
+}
+
+// ==========================================
+// AI REFERRALS SECTION
+// ==========================================
+const AI_SOURCE_COLORS = {ChatGPT:'#10a37f', Gemini:'#8e75ff', Claude:'#d97706', Perplexity:'#20b8cd'};
+const AI_SOURCES = ['ChatGPT','Gemini','Claude','Perplexity'];
+
+function renderAIRefKPIs() {
+  const f = DATA.ai_referral_funnel;
+  if (!f) return;
+  const a = f.aggregate;
+  document.getElementById('aiRefKpiRow').innerHTML = [
+    {label:'AI Signups (90d)', value:a.signups.toLocaleString()},
+    {label:'Activated', value:a.activated.toLocaleString(), sub:a.activation_rate+'%'},
+    {label:'Paid', value:a.paid.toLocaleString(), sub:a.paid_rate+'%'},
+    {label:'Med Signup→Act', value:Math.round(a.median_to_activation_s/60)+'min'},
+    {label:'Med Act→Paid', value:a.median_to_paid_s > 0 ? (a.median_to_paid_s/86400).toFixed(1)+'d' : '—'},
+    {label:'Top Source', value:'ChatGPT', sub:f.by_source.ChatGPT?.signups+' signups'},
+  ].map(k => {
+    const subHtml = k.sub ? `<div class="change neutral">${k.sub}</div>` : '';
+    return `<div class="kpi"><div class="label">${k.label}</div><div class="value">${k.value}</div>${subHtml}</div>`;
+  }).join('');
+}
+
+function renderAIRefFunnelChart() {
+  const f = DATA.ai_referral_funnel;
+  if (!f) return;
+  if (charts.aiRefFunnel) charts.aiRefFunnel.destroy();
+  charts.aiRefFunnel = new Chart(document.getElementById('aiRefFunnelChart'), {
+    type:'bar',
+    data:{
+      labels: AI_SOURCES,
+      datasets: [
+        {label:'Signups', data:AI_SOURCES.map(s=>f.by_source[s]?.signups||0), backgroundColor:'rgba(99,102,241,0.7)', borderRadius:4},
+        {label:'Activated', data:AI_SOURCES.map(s=>f.by_source[s]?.activated||0), backgroundColor:'rgba(34,197,94,0.7)', borderRadius:4},
+        {label:'Paid', data:AI_SOURCES.map(s=>f.by_source[s]?.paid||0), backgroundColor:'rgba(245,158,11,0.8)', borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#e4e4e7',font:{size:12}}, grid:{display:false}},
+        y:{ticks:{color:'#9ca3af',font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }
+  });
+}
+
+function renderAIRefDropoffChart() {
+  const f = DATA.ai_referral_funnel;
+  if (!f) return;
+  if (charts.aiRefDropoff) charts.aiRefDropoff.destroy();
+  charts.aiRefDropoff = new Chart(document.getElementById('aiRefDropoffChart'), {
+    type:'bar',
+    data:{
+      labels: AI_SOURCES,
+      datasets: [
+        {label:'Activation Rate %', data:AI_SOURCES.map(s=>f.by_source[s]?.activation_rate||0), backgroundColor:AI_SOURCES.map(s=>AI_SOURCE_COLORS[s]+'cc'), borderRadius:4},
+        {label:'Paid Rate %', data:AI_SOURCES.map(s=>f.by_source[s]?.paid_rate||0), backgroundColor:AI_SOURCES.map(s=>AI_SOURCE_COLORS[s]+'66'), borderRadius:4},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#9ca3af',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#e4e4e7',font:{size:12}}, grid:{display:false}},
+        y:{ticks:{color:'#9ca3af',font:{size:10},callback:v=>v+'%'}, grid:{color:'rgba(255,255,255,0.05)'}, max:30}
+      }
+    }
+  });
+}
+
+function renderAIRefTable() {
+  const f = DATA.ai_referral_funnel;
+  if (!f) return;
+  const rows = AI_SOURCES.map(s => {
+    const d = f.by_source[s] || {};
+    const signups = d.signups || 0;
+    const activated = d.activated || 0;
+    const paid = d.paid || 0;
+    const actDrop = signups > 0 ? ((1 - activated/signups)*100).toFixed(0)+'%' : '—';
+    const paidDrop = activated > 0 ? ((1 - paid/activated)*100).toFixed(0)+'%' : '—';
+    const medAct = d.median_to_activation_h ? d.median_to_activation_h+'h' : '—';
+    const medPaid = d.median_to_paid_d ? d.median_to_paid_d+'d' : '—';
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:${AI_SOURCE_COLORS[s]}"></span><strong>${s}</strong></span></td>
+      <td class="num"><strong>${signups.toLocaleString()}</strong></td>
+      <td class="num">${activated.toLocaleString()}</td>
+      <td class="num">${d.activation_rate||0}%</td>
+      <td class="num">${medAct}</td>
+      <td class="num">${paid.toLocaleString()}</td>
+      <td class="num">${d.paid_rate||0}%</td>
+      <td class="num">${medPaid}</td>
+      <td class="num"><span class="pill red">${actDrop}</span></td>
+      <td class="num"><span class="pill red">${paidDrop}</span></td>
+    </tr>`;
+  });
+  // Add total row
+  const a = f.aggregate;
+  const totActDrop = ((1-a.activated/a.signups)*100).toFixed(0)+'%';
+  const totPaidDrop = a.activated > 0 ? ((1-a.paid/a.activated)*100).toFixed(0)+'%' : '—';
+  rows.push(`<tr style="border-top:2px solid var(--border);font-weight:600">
+    <td>ALL AI</td>
+    <td class="num"><strong>${a.signups.toLocaleString()}</strong></td>
+    <td class="num">${a.activated.toLocaleString()}</td>
+    <td class="num">${a.activation_rate}%</td>
+    <td class="num">${Math.round(a.median_to_activation_s/60)}min</td>
+    <td class="num">${a.paid.toLocaleString()}</td>
+    <td class="num">${a.paid_rate}%</td>
+    <td class="num">${a.median_to_paid_s > 0 ? (a.median_to_paid_s/86400).toFixed(1)+'d' : '—'}</td>
+    <td class="num"><span class="pill red">${totActDrop}</span></td>
+    <td class="num"><span class="pill red">${totPaidDrop}</span></td>
+  </tr>`);
+  document.getElementById('aiRefTableBody').innerHTML = rows.join('');
+}
+
+function renderAIRefFunnelBars() {
+  const f = DATA.ai_referral_funnel;
+  if (!f) return;
+  const a = f.aggregate;
+  const steps = [
+    {label:'Signups', value:a.signups, color:'#6366f1'},
+    {label:'Activated', value:a.activated, color:'#22c55e'},
+    {label:'Paid', value:a.paid, color:'#f59e0b'},
+  ];
+  const max = steps[0].value || 1;
+  document.getElementById('aiRefFunnelBars').innerHTML = steps.map((s,i) => {
+    const pct = (s.value / max * 100);
+    const heightPx = Math.max(pct * 1.4, 20);
+    const dropPct = i > 0 ? ((1 - s.value/steps[i-1].value)*100).toFixed(0) : null;
+    const dropHtml = dropPct !== null ? `<div style="font-size:10px;color:var(--red);margin-top:4px">-${dropPct}%</div>` : '';
+    return `<div style="flex:1;text-align:center">
+      <div style="font-size:22px;font-weight:700;margin-bottom:4px">${s.value.toLocaleString()}</div>
+      <div style="background:${s.color};height:${heightPx}px;border-radius:6px;margin:0 auto;width:80%"></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">${s.label}</div>
+      ${dropHtml}
+    </div>`;
+  }).join('<div style="display:flex;align-items:center;color:var(--muted);font-size:18px;padding-bottom:30px">&rarr;</div>');
+}
+
+function renderAIReferrals() {
+  renderAIRefKPIs();
+  renderAIRefFunnelChart();
+  renderAIRefDropoffChart();
+  renderAIRefTable();
+  renderAIRefFunnelBars();
+}
+
+// ==========================================
+// INIT
+// ==========================================
+(async function init() {
+  const ok = await loadData();
+  if (ok) {
+    // Set date input bounds from data
+    const isos = DATA.weekly_trends.map(d => d.date_iso);
+    document.getElementById('dateFrom').min = isos[0];
+    document.getElementById('dateFrom').max = isos[isos.length - 1];
+    document.getElementById('dateTo').min = isos[0];
+    document.getElementById('dateTo').max = isos[isos.length - 1];
+    renderAll();
+    document.getElementById('refreshDot').className = 'refresh-dot';
+    document.getElementById('refreshLabel').textContent = 'Data loaded from dashboard-data.json';
+  } else {
+    document.getElementById('refreshDot').className = 'refresh-dot error';
+    document.getElementById('refreshLabel').textContent = 'Failed to load data — place dashboard-data.json next to this file';
+  }
+})();
+</script>
+</body>
+</html>

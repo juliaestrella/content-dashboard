@@ -1,0 +1,14 @@
+# Credentials — never commit
+*.json.key
+*service-account*.json
+*credentials*.json
+kinetic-cosmos-*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
