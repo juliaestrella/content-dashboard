@@ -1,9 +1,13 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "installCommand": null,
-  "outputDirectory": null,
+  "public": true,
   "rewrites": [
     { "source": "/", "destination": "/phantombuster-content-dashboard.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "s-maxage=300" }]
+    }
   ]
 }
