@@ -1,7 +1,7 @@
 {
   "meta": {
     "brand": "PhantomBuster",
-    "last_updated": "2026-03-25T03:20:26.599989+00:00",
+    "last_updated": "2026-03-25T07:30:37.141273+00:00",
     "period": "2026-01-01 to 2026-03-19",
     "prompts_count": 240,
     "total_blog_pages": 2635,
@@ -11552,7 +11552,7 @@
       "sessions": 773,
       "engagement": 366,
       "signups": 1562,
-      "signup_rate": 44.41,
+      "signup_rate": 44.39,
       "clicks": 0,
       "impressions": 0,
       "ctr": null,
