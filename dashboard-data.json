@@ -1,11 +1,12 @@
 {
   "meta": {
     "brand": "PhantomBuster",
-    "last_updated": "2026-04-16T07:12:48.523371+00:00",
+    "last_updated": "2026-04-16T07:23:08.073829+00:00",
     "period": "2026-01-01 to 2026-03-19",
     "prompts_count": 240,
     "total_blog_pages": 2700,
-    "competitors_count": 7
+    "competitors_count": 7,
+    "latest_data_date": "2026-04-15"
   },
   "weekly_trends": [
     {
@@ -182,7 +183,9 @@
       "citation_count": 888,
       "sentiment": 45.06,
       "answer_count": 2904,
-      "first_mention": 23.93
+      "first_mention": 23.93,
+      "partial": true,
+      "note": "Partial week (Mon\u2013Tue)"
     }
   ],
   "providers": [

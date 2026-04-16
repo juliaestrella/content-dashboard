@@ -678,8 +678,7 @@ function setPreset(preset, el) {
     dateRange = { from: null, to: null };
   } else {
     const weeks = parseInt(preset);
-    const allDates = DATA.weekly_trends.map(d => d.date_iso);
-    const latestDate = allDates[allDates.length - 1];
+    const latestDate = DATA.meta.latest_data_date || DATA.weekly_trends[DATA.weekly_trends.length - 1].date_iso;
     const to = new Date(latestDate + 'T00:00:00');
     const from = new Date(to);
     from.setDate(from.getDate() - (weeks * 7) + 1);
@@ -787,7 +786,10 @@ function renderHeaderMeta() {
   const m = DATA.meta;
   document.getElementById('headerMeta').textContent =
     `Tracking ${m.prompts_count} prompts · ${m.total_blog_pages.toLocaleString()} blog pages · ${m.competitors_count} competitors`;
-  document.getElementById('lastUpdated').textContent = 'Updated ' + new Date(m.last_updated).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+  const latestData = m.latest_data_date
+    ? new Date(m.latest_data_date + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})
+    : new Date(m.last_updated).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+  document.getElementById('lastUpdated').textContent = 'Data through ' + latestData;
 }
 
 function renderKPIs() {
