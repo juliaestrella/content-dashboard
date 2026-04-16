@@ -711,11 +711,17 @@ function applyCustomRange() {
 
 function updateRangeLabel() {
   const label = document.getElementById('rangeLabel');
+  const latestAvailable = DATA?.meta?.latest_data_date || null;
+  const latestStr = latestAvailable
+    ? new Date(latestAvailable + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})
+    : 'Latest';
   if (!dateRange.from && !dateRange.to) {
-    label.textContent = 'Showing all data';
+    const firstDate = DATA?.weekly_trends?.[0]?.date_iso;
+    const firstStr = firstDate ? new Date(firstDate + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric'}) : 'Start';
+    label.textContent = `${firstStr} — ${latestStr}`;
   } else {
     const fromStr = dateRange.from ? new Date(dateRange.from + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric'}) : 'Start';
-    const toStr = dateRange.to ? new Date(dateRange.to + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : 'Latest';
+    const toStr = dateRange.to ? new Date(dateRange.to + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : latestStr;
     label.textContent = `${fromStr} — ${toStr}`;
   }
 }
