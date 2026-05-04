@@ -1,7 +1,7 @@
 {
   "meta": {
     "brand": "PhantomBuster",
-    "last_updated": "2026-05-04T04:11:55.324973+00:00",
+    "last_updated": "2026-05-04T08:42:45.149815+00:00",
     "period": "2026-01-01 to 2026-03-19",
     "prompts_count": 240,
     "total_blog_pages": 2700,
@@ -11711,8 +11711,8 @@
       "traffic": 1887,
       "sessions": 2052,
       "engagement": 814,
-      "signups": 2054,
-      "signup_rate": 27.05,
+      "signups": 2055,
+      "signup_rate": 27.06,
       "clicks": 0,
       "impressions": 0,
       "ctr": null,
@@ -11859,7 +11859,7 @@
       "sessions": 1668,
       "engagement": 421,
       "signups": 792,
-      "signup_rate": 20.47,
+      "signup_rate": 20.46,
       "clicks": 0,
       "impressions": 0,
       "ctr": null,
@@ -12445,8 +12445,8 @@
     "total_citations": 5453,
     "total_traffic": 18385,
     "total_sessions": 24476,
-    "total_signups": 17134,
-    "overall_signup_rate": 70.0
+    "total_signups": 17135,
+    "overall_signup_rate": 70.01
   },
   "amplitude_funnel": {
     "period": "last_90_days",
